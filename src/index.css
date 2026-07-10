@@ -1,5 +1,42 @@
 @import "tailwindcss";
 
+/*
+ * Shared semantic design tokens (Tailwind v4 CSS-first theme).
+ * These generate utilities like bg-primary, text-warning, border-success/30,
+ * etc. automatically — no tailwind.config.js needed. Values are picked to
+ * match the palette AuthPage/Logo already use (emerald primary, slate
+ * neutrals) so new features stay visually consistent with the rest of
+ * the app. Add new semantic colors here rather than hardcoding hex values
+ * in components.
+ */
+@theme {
+  --color-background: #f1f5f9; /* slate-100 */
+  --color-foreground: #0f172a; /* slate-900 */
+
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a; /* slate-900 */
+
+  --color-border: #e2e8f0; /* slate-200 */
+
+  --color-muted: #f1f5f9; /* slate-100 */
+  --color-muted-foreground: #64748b; /* slate-500 */
+
+  --color-primary: #059669; /* emerald-600, matches Logo/AuthPage */
+  --color-primary-foreground: #ffffff;
+
+  --color-warning: #f59e0b; /* amber-500 */
+  --color-warning-foreground: #78350f; /* amber-900 */
+
+  --color-success: #10b981; /* emerald-500 */
+  --color-success-foreground: #ffffff;
+
+  --color-info: #2563eb; /* blue-600 */
+  --color-info-foreground: #ffffff;
+
+  --color-destructive: #dc2626; /* red-600 */
+  --color-destructive-foreground: #ffffff;
+}
+
 body {
   margin: 0;
 }
