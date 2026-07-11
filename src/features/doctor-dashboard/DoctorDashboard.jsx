@@ -1,13 +1,15 @@
+import { useState } from "react";
 import Toast from "../../components/Toast";
-import Logo from "../../components/Logo";
 import useToast from "../../hooks/useToast";
 import useAppointments from "../../hooks/useAppointments";
 import useBlockTimes from "../../hooks/useBlockTimes";
 import { todayISODate } from "../../utils/storage";
 import { seedDemoScheduleIfEmpty } from "./seedDemoSchedule";
-import KpiBar from "./components/KpiBar";
-import ScheduleTimeline from "./components/ScheduleTimeline";
-import BlockTimeForm from "./components/BlockTimeForm";
+import DashboardSidebar from "./components/DashboardSidebar";
+import DashboardView from "./views/DashboardView";
+import DailyScheduleView from "./views/DailyScheduleView";
+import AppointmentsView from "./views/AppointmentsView";
+import BlockTimeView from "./views/BlockTimeView";
 
 export default function DoctorDashboard({ doctorId, doctorName }) {
   // Runs synchronously during render, before useAppointments/useBlockTimes
@@ -16,6 +18,7 @@ export default function DoctorDashboard({ doctorId, doctorName }) {
   // are a cheap no-op once today's data exists.
   seedDemoScheduleIfEmpty(doctorId, doctorName);
 
+  const [activeView, setActiveView] = useState("dashboard");
   const { message, title, variant, showToast, hideToast } = useToast();
   const today = todayISODate();
 
@@ -47,29 +50,33 @@ export default function DoctorDashboard({ doctorId, doctorName }) {
   };
 
   return (
-    <div className="min-h-screen space-y-6 bg-background p-4 text-foreground md:p-6">
+    <div className="flex min-h-screen flex-col bg-background text-foreground md:flex-row">
       <Toast message={message} title={title} variant={variant} onClose={hideToast} />
 
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-        <Logo compact />
-        <div className="text-right">
-          <p className="text-sm font-semibold text-foreground">{doctorName}</p>
-          <p className="text-xs text-muted-foreground">Today's clinical schedule and queue overview</p>
-        </div>
-      </header>
+      <DashboardSidebar activeView={activeView} onNavigate={setActiveView} doctorName={doctorName} />
 
-      <KpiBar appointments={appointments} blocks={blocks} />
+      <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        {activeView === "dashboard" && (
+          <DashboardView
+            appointments={appointments}
+            blocks={blocks}
+            onComplete={handleComplete}
+            onCancel={handleCancel}
+          />
+        )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="lg:col-span-2">
-          <h2 className="mb-4 text-sm font-medium text-muted-foreground">Live Clinical Schedule</h2>
-          <ScheduleTimeline appointments={appointments} onComplete={handleComplete} onCancel={handleCancel} />
-        </section>
+        {activeView === "schedule" && (
+          <DailyScheduleView appointments={appointments} onComplete={handleComplete} onCancel={handleCancel} />
+        )}
 
-        <section>
-          <BlockTimeForm blocks={blocks} onAddBlock={handleAddBlock} onRemoveBlock={removeBlock} />
-        </section>
-      </div>
+        {activeView === "appointments" && (
+          <AppointmentsView appointments={appointments} onComplete={handleComplete} onCancel={handleCancel} />
+        )}
+
+        {activeView === "blocktime" && (
+          <BlockTimeView blocks={blocks} onAddBlock={handleAddBlock} onRemoveBlock={removeBlock} />
+        )}
+      </main>
     </div>
   );
 }
