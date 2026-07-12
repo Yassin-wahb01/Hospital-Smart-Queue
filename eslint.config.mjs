@@ -56,6 +56,16 @@ export default [
           pattern: "src/assets",
           mode: "folder"
         },
+        {
+          type: "services",
+          pattern: "src/services",
+          mode: "folder"
+        },
+        {
+          type: "context",
+          pattern: "src/context",
+          mode: "folder"
+        },
       ],
     },
     rules: {
@@ -71,21 +81,29 @@ export default [
           rules: [
             {
               from: "app",
-              allow: ["feature", "components", "hooks", "utils", "assets"],
+              allow: ["feature", "components", "hooks", "utils", "assets", "context", "services"],
             },
             {
               from: "feature",
               allow: [
-                "components", "hooks", "utils", "assets",
+                "components", "hooks", "utils", "assets", "services", "context",
                 ["feature", { featureName: "{{from.featureName}}" }]
               ],
             },
             {
               from: "components",
-              allow: ["hooks", "utils", "assets"],
+              allow: ["hooks", "utils", "assets", "context"],
             },
             {
               from: "hooks",
+              allow: ["utils", "services", "context"],
+            },
+            {
+              from: "context",
+              allow: ["services", "utils", "hooks"],
+            },
+            {
+              from: "services",
               allow: ["utils"],
             },
             {

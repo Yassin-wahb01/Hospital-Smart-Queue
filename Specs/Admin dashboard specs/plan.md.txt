@@ -1,0 +1,158 @@
+# Hospital Admin Dashboard – Production Blueprint (`plan.md`)
+
+## 0. Ponytail Pass — What Changed & Why
+
+Cuts made against the original draft, each with the trigger that would justify undoing the cut:
+
+- **Removed BullMQ / worker queue.** Cascade deletes are a bounded, indexed Mongo transaction — no queue needed. `# ponytail: sync transaction only; move cascade to a queue if/when it starts doing external I/O (email/SMS notifications on cancellation)`
+- **Removed MongoDB Change Streams + Redis debounce for analytics.** The API is the only writer; it emits directly. `# ponytail: in-process debounce only works single-instance; move to Redis pub/sub + Change Streams when you run >1 Node process`
+- **Redis cluster → single instance.** `# ponytail: single instance until metrics show real contention`
+- **Dropped `permissions[]` array.** Role enum + `authorize(['admin'])` covers 3 roles. `# ponytail: add per-user permission overrides only when a real use case needs one user's role to differ from the norm`
+- **Dropped `status: deactivating` transient state.** No longer needed once deactivation is synchronous.
+- **Removed `AnalyticsSnapshot` model** — declared but never used anywhere in the original plan.
+- **Fixed a real bug:** `StaffAssignment` was referenced in the department-deletion rule but never defined. Replaced with a `departmentId` field directly on `User` (a doctor belongs to at most one department — nothing in the plan said otherwise).
+- **Added back (security, never cut):** refresh-token rotation, and fixed the socket disconnect timer to re-arm on token refresh.
+
+---
+
+## 1. Architecture & Folder Structure
+
+```text
+hospital-admin-dashboard/
+├── client/                      # Vite + React 19 + Tailwind v4
+│   ├── public/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── App.css
+│   │   │   ├── App.jsx
+│   │   │   └── main.jsx
+│   │   ├── assets/
+│   │   ├── components/          # Global UI (Logo, Toast, Modals)
+│   │   ├── features/
+│   │   │   ├── auth/
+│   │   │   ├── staff/
+│   │   │   ├── departments/
+│   │   │   └── analytics/       # Socket-driven dashboard components
+│   │   ├── hooks/                # useAuth, useSocket, useForm, useToast
+│   │   ├── services/              # Axios interceptors, API clients
+│   │   ├── utils/
+│   │   └── index.css
+│   ├── eslint.config.mjs
+│   ├── package.json
+│   └── vite.config.js            # API proxy, required for SameSite=Strict cookies
+│
+├── server/                       # Node.js + Express backend
+│   ├── src/
+│   │   ├── config/               # Env, Mongo connection, Redis, Socket setup
+│   │   ├── models/
+│   │   │   ├── User.js
+│   │   │   ├── Department.js
+│   │   │   └── Appointment.js
+│   │   ├── services/              # Business logic + transactions + socket emits
+│   │   ├── middleware/            # RBAC, JWT verification, rate limiting
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── socket/                # Socket.io namespace + event handlers
+│   │   └── app.js
+│   └── package.json
+└── README.md
+```
+
+## 2. Database Schema & Integrity Rules
+
+All collections soft-delete (`isActive: Boolean`). Unique constraints use MongoDB partial indexes so a soft-deleted record never blocks reuse of its email/name.
+
+### 2.1 User (Staff)
+
+```javascript
+const userSchema = new Schema({
+  email:        { type: String, required: true, lowercase: true, trim: true },
+  passwordHash: { type: String, required: true },
+  name:         { type: String, required: true },
+  role:         { type: String, enum: ['admin', 'doctor', 'receptionist'], required: true },
+  departmentId: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
+  isActive:     { type: Boolean, default: true },
+  deletedAt:    { type: Date, default: null },
+  version:      { type: Number, default: 0 }, // optimistic concurrency
+  refreshTokenId: { type: String, default: null } // rotated on every refresh; null = logged out
+}, { timestamps: true });
+
+userSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
+userSchema.index({ role: 1, isActive: 1 });
+userSchema.index({ departmentId: 1, isActive: 1 });
+```
+
+Access control is `authorize(['admin'])` style checks against `role` directly — no separate permissions table for 3 roles.
+
+### 2.2 Department
+
+```javascript
+const departmentSchema = new Schema({
+  name:       { type: String, required: true },
+  headUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  isActive:   { type: Boolean, default: true }
+}, { timestamps: true });
+
+departmentSchema.index({ name: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
+```
+
+**Cascade rules — synchronous Mongo transactions, no queue:**
+
+- **Doctor deletion** (`DELETE /staff/:id`, role = doctor): single transaction —
+  1. `Appointment.updateMany({ doctorId, status: 'scheduled', date: { $gte: now } }, { status: 'cancelled' })`
+  2. `User.updateOne({ _id: id }, { isActive: false, deletedAt: now, departmentId: null })`
+  3. Commit, return `200` with `{ cancelledAppointments: n }`.
+  - *Upgrade path:* if cancellation later needs to notify patients (email/SMS), move step 1's side effect to a queued job — the DB writes above still run synchronously.
+
+- **Department deletion**: verify synchronously `headUserId === null` AND `User.countDocuments({ departmentId, isActive: true }) === 0`. If either fails, abort with `ACTIVE_DEPENDENCIES_EXIST` and surface a UI popup for manual reassignment first.
+
+## 3. Security Architecture
+
+### 3.1 Authentication & Authorization (fail-closed)
+
+- **JWT transport:** access token (15m) + refresh token (7d), both HTTP-only, Secure, `SameSite=Strict` cookies. Vite dev proxy keeps client/API same-origin.
+- **Refresh rotation:** every `/auth/refresh` call issues a new refresh token and overwrites `user.refreshTokenId`; the old token is rejected on reuse. Logout clears `refreshTokenId` and blacklists the current access token's `jti`.
+- **Redis blacklist (fail-closed):** single Redis instance. `authenticate` middleware checks the access token's `jti` against the blacklist on every request. If Redis is unreachable → `503`, never silently allow through.
+- **RBAC middleware:** `role` is embedded in the JWT; `authorize(['admin'])` checks it directly.
+
+### 3.2 Input Sanitization & Protections
+
+- Global `mongo-sanitize` (strip `$`/`.` operators).
+- `helmet` with strict CSP.
+- `express-rate-limit`: 100 req/min general, 5 req/min on auth routes.
+
+## 4. API & Real-Time Specification
+
+### 4.1 REST Endpoints (`/api/v1`)
+
+- Auth: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
+- Staff: `GET /staff` (supports `?limit&skip`), `POST /staff`, `PUT /staff/:id`, `DELETE /staff/:id` → `200` with cancellation count (see 2.2)
+- Departments: `GET /departments`, `POST /departments`, `PUT /departments/:id/reassign-head`
+- Analytics: `GET /analytics/weekly`
+
+### 4.2 Socket.IO Real-Time Engine
+
+- **Auth:** socket handshake reads the HTTP-only cookie; server extracts JWT expiry.
+- **Security disconnect:** server arms a `setTimeout` matching JWT expiry and force-disconnects on fire. **This timer must be re-armed whenever the client's access token is refreshed** (client emits a lightweight `token:refreshed` ping, or the server re-checks expiry on the next heartbeat) — the original draft didn't do this, so a refreshed session would still get dropped on the old token's clock.
+- **Events (server → client):** `analytics:update`. Triggered by the appointment service itself, immediately after a successful write, via an in-process debounce (module-level `setTimeout`, ~5s window per room) — no Change Streams, no Redis pub/sub, single Node instance only.
+
+## 5. Implementation Phases
+
+**Phase 1 — Environment & Core Foundation**
+- Scaffold Vite/React 19 (default structure) + Express server.
+- Vite proxy: `/api` → Express backend (required for `SameSite=Strict`).
+- MongoDB replica set (needed for transactions — used by the cascade logic in §2.2) + a single Redis instance.
+
+**Phase 2 — Security & Auth**
+- JWT issuance, refresh rotation, Redis blacklist (fail-closed), RBAC middleware.
+- Frontend `useAuth` hook + auth pages.
+
+**Phase 3 — Domain Logic**
+- Staff and Department CRUD, including the synchronous cascade transaction and the `ACTIVE_DEPENDENCIES_EXIST` block on department deletion.
+
+**Phase 4 — Real-Time Analytics**
+- Appointment service emits `analytics:update` directly after writes, in-process debounced, to the `analytics:admin` room.
+
+**Phase 5 — Hardening**
+- Load test the cascade transaction under concurrent doctor deletions.
+- CI/CD + Dockerization.

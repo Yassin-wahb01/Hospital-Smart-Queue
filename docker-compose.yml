@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: medicare_mongo
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # One-shot service that initialises the replica set
+  mongo-init:
+    image: mongo:7
+    container_name: medicare_mongo_init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    entrypoint:
+      - mongosh
+      - --host
+      - mongo
+      - --eval
+      - |
+        rs.initiate({
+          _id: "rs0",
+          members: [{ _id: 0, host: "mongo:27017" }]
+        })
+
+volumes:
+  mongo_data:
