@@ -6,23 +6,34 @@ import SignInForm from "./SignInForm";
 import RegisterForm from "./RegisterForm";
 
 // ⚠️ TEST-ONLY BLOCK — remove this once you wire up a real backend.
-// This fakes a "correct" account so we can trigger the invalid-login toast.
-const MOCK_CREDENTIALS = { email: "test@medicare.com", password: "password123" };
+// One fake account per role so every role's sign-in path can be tested
+// even before that role has a real dashboard built.
+const MOCK_ACCOUNTS = [
+  { email: "doctor@medicare.com", password: "password123", role: "doctor", userId: "doc-001", name: "Dr. Sarah Youssef" },
+  { email: "patient@medicare.com", password: "password123", role: "patient", userId: "pat-001", name: "Ahmed Kamal" },
+  { email: "reception@medicare.com", password: "password123", role: "receptionist", userId: "rec-001", name: "Mona Adel" },
+  { email: "admin@medicare.com", password: "password123", role: "admin", userId: "adm-001", name: "Youssef Hany" },
+];
 // ⚠️ END TEST-ONLY BLOCK
 
-export default function AuthPage() {
+export default function AuthPage({ onSignInSuccess }) {
   const [activeTab, setActiveTab] = useState("signin");
   const { message, showToast, hideToast } = useToast();
 
   const handleSignIn = (values) => {
-    // ⚠️ TEST-ONLY CHECK — replace this whole "if" block with your real API call.
-    if (values.email !== MOCK_CREDENTIALS.email || values.password !== MOCK_CREDENTIALS.password) {
+    // ⚠️ TEST-ONLY CHECK — replace this whole block with your real API call.
+    const account = MOCK_ACCOUNTS.find(
+      (acc) => acc.email === values.email && acc.password === values.password
+    );
+    if (!account) {
       showToast("Invalid email or password. Please try again.");
       return;
     }
     // ⚠️ END TEST-ONLY CHECK
 
     console.log("Sign in:", values);
+    // TODO: once a real backend exists, use the user info it returns instead.
+    onSignInSuccess?.({ role: account.role, userId: account.userId, name: account.name });
   };
 
   return (
