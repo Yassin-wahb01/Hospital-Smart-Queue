@@ -40,19 +40,16 @@ userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ departmentId: 1, isActive: 1 });
 
 // Hash password before save (only when passwordHash field is explicitly set as plaintext)
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('passwordHash')) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('passwordHash')) return;
 
   const plain = this.passwordHash;
   if (!PASSWORD_REGEX.test(plain)) {
-    return next(
-      new Error(
-        'Password must be at least 12 characters and include uppercase, lowercase, and a digit.'
-      )
+    throw new Error(
+      'Password must be at least 12 characters and include uppercase, lowercase, and a digit.'
     );
   }
   this.passwordHash = await bcrypt.hash(plain, 12);
-  next();
 });
 
 userSchema.methods.comparePassword = function (plain) {
