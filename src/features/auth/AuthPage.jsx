@@ -25,7 +25,12 @@ export default function AuthPage() {
           <Logo />
         </div>
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl overflow-hidden backdrop-blur-sm">
+        <div
+          className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl overflow-hidden backdrop-blur-sm transition-[max-height] duration-600 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          style={{
+            maxHeight: activeTab === 'signin' ? '380px' : '560px',
+          }}
+        >
           {/* Animated Tab Switch Buttons */}
           <div className="flex gap-1 bg-slate-100 dark:bg-slate-800/80 p-1.5">
             <button
@@ -50,9 +55,21 @@ export default function AuthPage() {
             </button>
           </div>
 
-          {/* Form Content Wrapper with key to re-trigger animation on switch */}
-          <div key={activeTab} className="p-8 animate-tab-switch">
-            {activeTab === 'signin' ? <SignInForm /> : <RegisterForm />}
+          {/* Smooth Sliding Form Content Wrapper */}
+          <div className="relative overflow-hidden w-full">
+            <div
+              className="flex w-[200%] transition-transform duration-600 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              style={{
+                transform: activeTab === 'signin' ? 'translateX(0%)' : 'translateX(-50%)',
+              }}
+            >
+              <div className="w-1/2 shrink-0 p-8 align-top" inert={activeTab === 'signin' ? undefined : 'true'}>
+                <SignInForm />
+              </div>
+              <div className="w-1/2 shrink-0 p-8 align-top" inert={activeTab === 'register' ? undefined : 'true'}>
+                <RegisterForm />
+              </div>
+            </div>
           </div>
         </div>
       </div>
