@@ -1,5 +1,7 @@
 import { Ban, Calendar, Clock, LayoutDashboard, LogOut } from "lucide-react";
 import Logo from "../../../components/Logo";
+import { useAuth } from "../../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
@@ -9,6 +11,24 @@ const NAV_ITEMS = [
 ];
 
 export default function DashboardSidebar({ activeView, onNavigate, isOpen, doctorName, onSignOut }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  async function handleSignOutClick() {
+    console.log('[DashboardSidebar] Sign out button clicked');
+    if (typeof onSignOut === 'function') {
+      await onSignOut();
+    } else {
+      console.log('[DashboardSidebar] onSignOut prop is missing or not a function, running local logout fallback');
+      try {
+        await logout();
+      } catch (err) {
+        console.error('[DashboardSidebar] fallback logout failed:', err);
+      }
+      navigate('/login');
+    }
+  }
+
   return (
     <aside
       className={`shrink-0 overflow-hidden border-r border-border bg-muted/60 transition-all duration-200 ${
@@ -50,7 +70,7 @@ export default function DashboardSidebar({ activeView, onNavigate, isOpen, docto
           </div>
           <button
             type="button"
-            onClick={onSignOut}
+            onClick={handleSignOutClick}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
           >
             <LogOut className="h-4 w-4" />

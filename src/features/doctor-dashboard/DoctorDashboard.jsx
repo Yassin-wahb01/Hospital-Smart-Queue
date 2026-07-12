@@ -14,6 +14,7 @@ import AppointmentsView from "./views/AppointmentsView";
 import BlockTimeView from "./views/BlockTimeView";
 
 export default function DoctorDashboard({ doctorId, doctorName, onSignOut }) {
+  console.log('[DoctorDashboard] rendered, props:', { doctorId, doctorName, onSignOut });
   // Runs synchronously during render, before useAppointments/useBlockTimes
   // read localStorage below — so their very first read already sees the
   // seeded data. It's idempotent (see seedDemoSchedule.js), so re-renders

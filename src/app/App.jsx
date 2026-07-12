@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import AuthPage from '../features/auth/AuthPage';
@@ -30,12 +30,25 @@ function LoginRoute() {
 
 function DoctorDashboardRoute() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   if (user === undefined) return null;
+
+  async function handleSignOut() {
+    console.log('[App] handleSignOut called');
+    try {
+      await logout();
+      console.log('[App] logout complete, redirecting to /login');
+    } catch (err) {
+      console.error('[App] logout failed:', err);
+    }
+    navigate('/login');
+  }
+
   return (
     <DoctorDashboard
       doctorId={user._id || user.userId}
       doctorName={user.name}
-      onSignOut={logout}
+      onSignOut={handleSignOut}
     />
   );
 }
