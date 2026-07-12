@@ -15,8 +15,12 @@ export default function SignInForm() {
     setError('');
     setLoading(true);
     try {
-      await login(values.email, values.password);
-      navigate('/dashboard/staff');
+      const user = await login(values.email, values.password);
+      if (user?.role === 'doctor') {
+        navigate('/doctor-dashboard');
+      } else {
+        navigate('/dashboard/staff');
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid email or password.');
     } finally {
