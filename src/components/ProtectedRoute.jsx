@@ -13,6 +13,10 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     // If user's role is not authorized, redirect to their default dashboard
     if (user.role === 'doctor') {
       return <Navigate to="/doctor-dashboard" replace />;
+    } else if (user.role === 'patient') {
+      return <Navigate to="/patient-dashboard" replace />;
+    } else if (user.role === 'receptionist') {
+      return <Navigate to="/receptionist-dashboard" replace />;
     } else {
       return <Navigate to="/dashboard/staff" replace />;
     }

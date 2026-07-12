@@ -71,9 +71,39 @@ async function refresh(incomingRefreshToken, res) {
   return { _id: user._id, name: user.name, email: user.email, role: user.role };
 }
 
+async function register(data, res) {
+  const email = data.email;
+  const existing = await User.findOne({ email, isActive: true });
+  if (existing) {
+    const err = new Error('Email already in use');
+    err.status = 400;
+    throw err;
+  }
+
+  const user = new User({
+    email: data.email,
+    passwordHash: data.password, // Mongoose pre-save hook hashes this
+    name: data.name,
+    phone: data.phone || null,
+    role: 'patient',
+  });
+  await user.save();
+
+  const refreshTokenId = randomUUID();
+  user.refreshTokenId = refreshTokenId;
+  await user.save();
+
+  const payload = { userId: user._id, role: user.role };
+  const accessToken = signAccess(payload);
+  const refreshToken = signRefresh({ ...payload, refreshTokenId });
+  setTokenCookies(res, accessToken, refreshToken);
+
+  return { _id: user._id, name: user.name, email: user.email, role: user.role };
+}
+
 async function logout(userId, res) {
   await User.updateOne({ _id: userId }, { refreshTokenId: null });
   clearTokenCookies(res);
 }
 
-module.exports = { login, refresh, logout };
+module.exports = { login, refresh, logout, register };

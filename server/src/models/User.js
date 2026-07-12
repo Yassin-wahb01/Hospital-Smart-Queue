@@ -15,9 +15,10 @@ const userSchema = new Schema(
     name: { type: String, required: true, trim: true },
     role: {
       type: String,
-      enum: ['admin', 'doctor', 'receptionist'],
+      enum: ['admin', 'doctor', 'receptionist', 'patient'],
       required: true,
     },
+    phone: { type: String, default: null },
     departmentId: {
       type: Schema.Types.ObjectId,
       ref: 'Department',

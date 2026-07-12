@@ -1,11 +1,12 @@
+import { useState } from 'react';
+import Logo from '../../components/Logo';
 import Toast from '../../components/Toast';
 import useToast from '../../hooks/useToast';
 import SignInForm from './SignInForm';
-
-// RegisterForm is repurposed as admin-gated "Create Staff" form (features/staff/).
-// There is no public self-registration endpoint — staff are created by admins only.
+import RegisterForm from './RegisterForm';
 
 export default function AuthPage() {
+  const [activeTab, setActiveTab] = useState('signin');
   const { message, hideToast } = useToast();
 
   return (
@@ -13,10 +14,31 @@ export default function AuthPage() {
       <Toast message={message} onClose={hideToast} />
 
       <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-slate-300 bg-white p-8 shadow-lg">
-          <h1 className="mb-1 text-2xl font-bold text-slate-900">MediCare Admin</h1>
-          <p className="mb-6 text-sm text-slate-500">Hospital Management Dashboard</p>
-          <SignInForm />
+        <Logo />
+
+        <div className="rounded-2xl border border-slate-300 bg-white shadow-lg">
+          <div className="flex gap-1 rounded-t-2xl bg-slate-300 p-1">
+            <button
+              onClick={() => setActiveTab('signin')}
+              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${
+                activeTab === 'signin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-700'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => setActiveTab('register')}
+              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${
+                activeTab === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-700'
+              }`}
+            >
+              Register
+            </button>
+          </div>
+
+          <div className="p-6">
+            {activeTab === 'signin' ? <SignInForm /> : <RegisterForm />}
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
+import RolePlaceholder from '../components/RolePlaceholder';
 import AuthPage from '../features/auth/AuthPage';
 import DashboardLayout from '../features/dashboard/DashboardLayout';
 import DashboardHome from '../features/dashboard/DashboardHome';
@@ -15,6 +16,8 @@ function RootRedirect() {
   if (user === undefined) return null; // loading
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'doctor') return <Navigate to="/doctor-dashboard" replace />;
+  if (user.role === 'patient') return <Navigate to="/patient-dashboard" replace />;
+  if (user.role === 'receptionist') return <Navigate to="/receptionist-dashboard" replace />;
   return <Navigate to="/dashboard/staff" replace />;
 }
 
@@ -23,6 +26,8 @@ function LoginRoute() {
   if (user === undefined) return null; // loading
   if (user) {
     if (user.role === 'doctor') return <Navigate to="/doctor-dashboard" replace />;
+    if (user.role === 'patient') return <Navigate to="/patient-dashboard" replace />;
+    if (user.role === 'receptionist') return <Navigate to="/receptionist-dashboard" replace />;
     return <Navigate to="/dashboard/staff" replace />;
   }
   return <AuthPage />;
@@ -34,12 +39,10 @@ function DoctorDashboardRoute() {
   if (user === undefined) return null;
 
   async function handleSignOut() {
-    console.log('[App] handleSignOut called');
     try {
       await logout();
-      console.log('[App] logout complete, redirecting to /login');
     } catch (err) {
-      console.error('[App] logout failed:', err);
+      console.error(err);
     }
     navigate('/login');
   }
@@ -48,6 +51,52 @@ function DoctorDashboardRoute() {
     <DoctorDashboard
       doctorId={user._id || user.userId}
       doctorName={user.name}
+      onSignOut={handleSignOut}
+    />
+  );
+}
+
+function PatientDashboardRoute() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  if (user === undefined) return null;
+
+  async function handleSignOut() {
+    try {
+      await logout();
+    } catch (err) {
+      console.error(err);
+    }
+    navigate('/login');
+  }
+
+  return (
+    <RolePlaceholder
+      role={user.role}
+      name={user.name}
+      onSignOut={handleSignOut}
+    />
+  );
+}
+
+function ReceptionistDashboardRoute() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  if (user === undefined) return null;
+
+  async function handleSignOut() {
+    try {
+      await logout();
+    } catch (err) {
+      console.error(err);
+    }
+    navigate('/login');
+  }
+
+  return (
+    <RolePlaceholder
+      role={user.role}
+      name={user.name}
       onSignOut={handleSignOut}
     />
   );
@@ -80,6 +129,24 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['doctor']}>
                 <DoctorDashboardRoute />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patient-dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PatientDashboardRoute />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/receptionist-dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['receptionist']}>
+                <ReceptionistDashboardRoute />
               </ProtectedRoute>
             }
           />

@@ -13,6 +13,16 @@ const loginRules = [
   body('password').notEmpty(),
 ];
 
+const registerRules = [
+  body('email').isEmail().normalizeEmail(),
+  body('password')
+    .isLength({ min: 12 })
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must be ≥12 chars with upper, lower, and digit'),
+  body('name').trim().notEmpty(),
+  body('phone').optional().trim(),
+];
+
 async function login(req, res, next) {
   try {
     const user = await authService.login(req.body.email, req.body.password, res);
@@ -42,6 +52,15 @@ async function logout(req, res, next) {
   }
 }
 
+async function register(req, res, next) {
+  try {
+    const user = await authService.register(req.body, res);
+    res.status(201).json(user);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function me(req, res, next) {
   try {
     const user = await User.findOne(
@@ -55,4 +74,4 @@ async function me(req, res, next) {
   }
 }
 
-module.exports = { loginRules, validate, login, refreshToken, logout, me };
+module.exports = { loginRules, registerRules, validate, login, register, refreshToken, logout, me };
