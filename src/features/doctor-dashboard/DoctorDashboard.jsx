@@ -13,7 +13,7 @@ import DailyScheduleView from "./views/DailyScheduleView";
 import AppointmentsView from "./views/AppointmentsView";
 import BlockTimeView from "./views/BlockTimeView";
 
-export default function DoctorDashboard({ doctorId, doctorName }) {
+export default function DoctorDashboard({ doctorId, doctorName, onSignOut }) {
   // Runs synchronously during render, before useAppointments/useBlockTimes
   // read localStorage below — so their very first read already sees the
   // seeded data. It's idempotent (see seedDemoSchedule.js), so re-renders
@@ -53,13 +53,6 @@ export default function DoctorDashboard({ doctorId, doctorName }) {
     });
   };
 
-  // No real auth flow exists yet — this drops the temporary ?dashboard=1
-  // preview param and sends the doctor back to the sign-in page. Replace
-  // with the real sign-out call once auth is wired up.
-  const handleSignOut = () => {
-    window.location.href = window.location.pathname;
-  };
-
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <Toast message={message} title={title} variant={variant} onClose={hideToast} />
@@ -72,7 +65,7 @@ export default function DoctorDashboard({ doctorId, doctorName }) {
           isDark={isDark}
           onToggleDarkMode={toggleDarkMode}
           doctorName={doctorName}
-          onSignOut={handleSignOut}
+          onSignOut={onSignOut}
         />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
