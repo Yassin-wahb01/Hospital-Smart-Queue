@@ -14,6 +14,7 @@ import AppointmentsView from "./views/AppointmentsView";
 import BlockTimeView from "./views/BlockTimeView";
 
 export default function DoctorDashboard({ doctorId, doctorName, onSignOut }) {
+  console.log('[DoctorDashboard] rendered, props:', { doctorId, doctorName, onSignOut });
   // Runs synchronously during render, before useAppointments/useBlockTimes
   // read localStorage below — so their very first read already sees the
   // seeded data. It's idempotent (see seedDemoSchedule.js), so re-renders
@@ -57,7 +58,13 @@ export default function DoctorDashboard({ doctorId, doctorName, onSignOut }) {
     <div className="flex min-h-screen bg-background text-foreground">
       <Toast message={message} title={title} variant={variant} onClose={hideToast} />
 
-      <DashboardSidebar activeView={activeView} onNavigate={setActiveView} isOpen={sidebarOpen} />
+      <DashboardSidebar
+        activeView={activeView}
+        onNavigate={setActiveView}
+        isOpen={sidebarOpen}
+        doctorName={doctorName}
+        onSignOut={onSignOut}
+      />
 
       <div className="flex min-h-screen flex-1 flex-col">
         <DashboardHeader
@@ -65,7 +72,6 @@ export default function DoctorDashboard({ doctorId, doctorName, onSignOut }) {
           isDark={isDark}
           onToggleDarkMode={toggleDarkMode}
           doctorName={doctorName}
-          onSignOut={onSignOut}
         />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">

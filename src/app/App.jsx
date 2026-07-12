@@ -1,56 +1,159 @@
-import { useState } from "react";
-import AuthPage from "../features/auth/AuthPage";
-import DoctorDashboard from "../features/doctor-dashboard/DoctorDashboard";
-import RolePlaceholder from "../components/RolePlaceholder";
-import "./App.css";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import ProtectedRoute from '../components/ProtectedRoute';
+import RolePlaceholder from '../components/RolePlaceholder';
+import AuthPage from '../features/auth/AuthPage';
+import DashboardLayout from '../features/dashboard/DashboardLayout';
+import DashboardHome from '../features/dashboard/DashboardHome';
+import StaffPage from '../features/staff/StaffPage';
+import DepartmentsPage from '../features/departments/DepartmentsPage';
+import AnalyticsPage from '../features/analytics/AnalyticsPage';
+import DoctorDashboard from '../features/doctor-dashboard/DoctorDashboard';
+import './App.css';
 
-// ⚠️ TEMP DEV PREVIEW BLOCK — remove once real routing (react-router or
-// similar) is added. Visit the app with ?dashboard=1 in the URL to preview
-// the Doctor Dashboard directly, e.g. http://localhost:5173/?dashboard=1
-// Default behavior (AuthPage) is unchanged for everyone else.
-const previewDashboard = new URLSearchParams(window.location.search).get("dashboard") === "1";
-// ⚠️ END TEMP DEV PREVIEW BLOCK
-
-// Add a role here once its real dashboard is built. Any role not listed
-// falls back to RolePlaceholder so sign-in still works for every role
-// even before its dashboard exists.
-const ROLE_DASHBOARDS = {
-  doctor: DoctorDashboard,
-  // patient: PatientDashboard,
-  // receptionist: ReceptionistDashboard,
-  // admin: AdminDashboard,
-};
-
-function App() {
-  // No real auth flow exists yet, so this session state is held in memory
-  // and starts out "logged in" only for the ?dashboard=1 preview shortcut.
-  // Once a real backend/auth is added, replace this with your actual
-  // session/auth state (e.g. from a context, cookie, or token check).
-  const [session, setSession] = useState(
-    previewDashboard ? { role: "doctor", userId: "doc-001", name: "Dr. Sarah Youssef" } : null
-  );
-
-  const handleSignOut = () => setSession(null);
-
-  if (session) {
-    const Dashboard = ROLE_DASHBOARDS[session.role];
-
-    if (!Dashboard) {
-      return <RolePlaceholder role={session.role} name={session.name} onSignOut={handleSignOut} />;
-    }
-
-    // DoctorDashboard currently expects doctorId/doctorName specifically;
-    // other future dashboards can just take userId/name directly instead.
-    return (
-      <Dashboard
-        doctorId={session.userId}
-        doctorName={session.name}
-        onSignOut={handleSignOut}
-      />
-    );
-  }
-
-  return <AuthPage onSignInSuccess={(user) => setSession(user)} />;
+function RootRedirect() {
+  const { user } = useAuth();
+  if (user === undefined) return null; // loading
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'doctor') return <Navigate to="/doctor-dashboard" replace />;
+  if (user.role === 'patient') return <Navigate to="/patient-dashboard" replace />;
+  if (user.role === 'receptionist') return <Navigate to="/receptionist-dashboard" replace />;
+  return <Navigate to="/dashboard/staff" replace />;
 }
 
-export default App;
+function LoginRoute() {
+  const { user } = useAuth();
+  if (user === undefined) return null; // loading
+  if (user) {
+    if (user.role === 'doctor') return <Navigate to="/doctor-dashboard" replace />;
+    if (user.role === 'patient') return <Navigate to="/patient-dashboard" replace />;
+    if (user.role === 'receptionist') return <Navigate to="/receptionist-dashboard" replace />;
+    return <Navigate to="/dashboard/staff" replace />;
+  }
+  return <AuthPage />;
+}
+
+function DoctorDashboardRoute() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  if (user === undefined) return null;
+
+  async function handleSignOut() {
+    try {
+      await logout();
+    } catch (err) {
+      console.error(err);
+    }
+    navigate('/login');
+  }
+
+  return (
+    <DoctorDashboard
+      doctorId={user._id || user.userId}
+      doctorName={user.name}
+      onSignOut={handleSignOut}
+    />
+  );
+}
+
+function PatientDashboardRoute() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  if (user === undefined) return null;
+
+  async function handleSignOut() {
+    try {
+      await logout();
+    } catch (err) {
+      console.error(err);
+    }
+    navigate('/login');
+  }
+
+  return (
+    <RolePlaceholder
+      role={user.role}
+      name={user.name}
+      onSignOut={handleSignOut}
+    />
+  );
+}
+
+function ReceptionistDashboardRoute() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  if (user === undefined) return null;
+
+  async function handleSignOut() {
+    try {
+      await logout();
+    } catch (err) {
+      console.error(err);
+    }
+    navigate('/login');
+  }
+
+  return (
+    <RolePlaceholder
+      role={user.role}
+      name={user.name}
+      onSignOut={handleSignOut}
+    />
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/login" element={<LoginRoute />} />
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<DashboardHome />} />
+            <Route path="staff"       element={<StaffPage />} />
+            <Route path="departments" element={<DepartmentsPage />} />
+            <Route path="analytics"   element={<AnalyticsPage />} />
+          </Route>
+
+          <Route
+            path="/doctor-dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DoctorDashboardRoute />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patient-dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PatientDashboardRoute />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/receptionist-dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['receptionist']}>
+                <ReceptionistDashboardRoute />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}

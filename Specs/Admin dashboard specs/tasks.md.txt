@@ -1,0 +1,118 @@
+# Tasks for Hospital Admin Dashboard (Scholarship-Scoped)
+
+Scoped for a solo graduation project: one (or a few) admin users, low traffic, a fixed deadline, and a live viva/demo — not a production hospital system. This is the third pass on the same task list, reconciling two reviews: the earlier "production-grade" draft, and a second-opinion review that flagged it as over-engineered.
+
+## 0. Ponytail Pass — Adjudicating the Over-Engineering Review
+
+**Cut (genuinely too heavy for this context):**
+- **Socket.IO real-time engine** → REST polling every ~10s from the analytics page (`setInterval` + fetch). A live-feeling dashboard doesn't need push infrastructure for a graded demo.
+- **Redis-backed JWT blacklist** → dropped. A second service to run, for revocation nobody but you will test.
+- **`winston`** → `console.log`/`console.error` is enough.
+- **Optimistic concurrency (`version` field, 409 conflicts)** → dropped. Protects against concurrent edits to the same record; a solo demo won't hit that race.
+- **Load/concurrency testing infrastructure** → trimmed to one correctness test on the cascade transaction, not a load-test suite.
+
+**Kept (these were free, or cutting them creates a real bug — not the same thing as over-engineering):**
+- **MongoDB transactions + single-node replica set.** The alternative removes this by explicitly accepting that a failure mid-cascade can leave a cancelled appointment on a still-active doctor — a real data-corruption bug, not a simplification. It's also not the infra burden it's made out to be: one `docker-compose` flag + `rs.initiate()` once locally, and **MongoDB Atlas's free tier is already a replica set by default**, so production gets transactions for free.
+- **`refreshTokenId` on `User`, checked and rotated on `/refresh`, cleared on logout.** This is not the same decision as "use Redis" — it's a single Mongo field, zero extra infra, and it's what makes logout actually revoke the session instead of leaving a 7-day cookie valid regardless.
+- **`express-validator`, `express-rate-limit`, `mongo-sanitize`.** All plain npm packages, no infrastructure, one line each. Nothing is saved by cutting them.
+- **Vite reverse-proxy config, `eslint-plugin-boundaries` registration, and the `RegisterForm.jsx` decision flag** — restored. These came from the actual codebase audit, not the engineering-weight debate, and dropped out of the rewrite by omission.
+
+---
+
+## Phase 1: Foundation
+
+### 1.1 Project Setup
+- [x] Confirm root folder `hospital-admin-dashboard` (already exists).
+- [x] **Verify, don't re-scaffold** `client/`: React 19.2.7, Vite 8.1.1, Tailwind v4.3.2, `oxlint`, `eslint-plugin-boundaries` are already installed. Confirm `npm run dev` works first.
+- [x] Install `react-router-dom` in `client/` — missing entirely.
+- [x] `mkdir server && cd server && npm init -y`.
+- [x] Install: `express mongoose dotenv cors cookie-parser helmet express-rate-limit express-validator mongo-sanitize jsonwebtoken bcryptjs`.
+- [x] Install dev dep: `nodemon`.
+- [x] Create `server/.env`: `PORT`, `MONGODB_URI` (with `replicaSet=rs0`), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COOKIE_DOMAIN`.
+
+### 1.2 Server Skeleton & MongoDB Replica Set
+- [x] `server/src/config/db.js` — Mongoose connection lifecycle with pool cap limit `maxPoolSize: 5`.
+- [x] `server/src/app.js` — global middleware: `cors` (credentials: true), `helmet`, `cookie-parser`, `express.json`, `mongo-sanitize`.
+- [x] `server/src/index.js` — connect DB first, then start the HTTP listener.
+- [x] `docker-compose.yml` — single-node MongoDB replica set.
+- [x] Run `rs.initiate()` automatically inside container startup.
+
+### 1.3 Mongoose Models
+- [x] `User.js`: `email`, `passwordHash` (hashed using pure JS `bcryptjs`), `name`, `role` (enum: `admin`/`doctor`/`receptionist`), `departmentId` (ref `Department`, default null), `isActive`, `deletedAt`, `refreshTokenId` (String, default null). No `version` field.
+- [x] Unique partial index on `email` where `{ isActive: true }`.
+- [x] `pre('save')` hook: bcryptjs-hash modified passwords (12 rounds); enforce strength (min 12 chars, upper, lower, digit).
+- [x] `Department.js`: `name`, `headUserId` (ref `User`, default null), `isActive`.
+- [x] Unique partial index on `name` where `{ isActive: true }`.
+- [x] `Appointment.js`: `doctorId` (ref `User`), `departmentId` (ref `Department`), `dateTime`, `status` (enum: `scheduled`/`attended`/`no-show`/`cancelled`), `isActive`, `deletedAt`. No `patientId` — out of scope.
+- [x] Compound indexes: `{ doctorId: 1, dateTime: 1, status: 1 }` (cascade query), `{ departmentId: 1, dateTime: 1 }` (analytics).
+
+## Phase 2: Authentication & Authorization
+
+### 2.1 Tokens
+- [x] `server/src/utils/jwt.js` — sign/verify access (15m) and refresh (7d) tokens containing `userId`, `role`.
+- [x] `server/src/services/authService.js` — on `/refresh`: verify the incoming refresh token, compare against `user.refreshTokenId`, reject on mismatch, issue + store a new `refreshTokenId` on success. On `/logout`: clear cookies **and** clear `user.refreshTokenId` server-side — this is what makes logout real without needing Redis.
+- [x] No Redis blacklist. Access tokens stay short (15m) as the safety net for that window.
+- [x] CSRF: rely on `SameSite=Strict` cookies alone — they already block the cross-site vector a CSRF token exists to stop.
+
+### 2.2 Middleware
+- [x] `authenticate.js` — read cookie, verify JWT signature, attach `req.user`.
+- [x] `authorize.js` — static role check, e.g. `authorize(['admin'])`.
+
+### 2.3 Auth Endpoints
+- [x] `POST /api/v1/auth/login` — validate credentials (via `express-validator`), issue cookies, store `refreshTokenId`.
+- [x] `POST /api/v1/auth/refresh` — rotation as above.
+- [x] `POST /api/v1/auth/logout` — clear cookies + `refreshTokenId`.
+- [x] `GET /api/v1/auth/me` — return current user from the access token; used by React to check session on load.
+
+## Phase 3: Staff & Department Management
+
+### 3.1 Synchronous Cascade Workflow
+- [x] `server/src/services/staffService.js` → `deactivateUser(userId)`, wrapped in a single Mongo **transaction** (not sequential updates):
+  1. Set `isActive: false`, `deletedAt: now`, `departmentId: null` on the user.
+  2. `Appointment.updateMany({ doctorId: userId, status: 'scheduled', dateTime: { $gte: now } }, { status: 'cancelled' })`.
+  3. Commit; return `{ cancelledAppointments: n }`.
+- [x] `server/src/services/departmentService.js` → `deactivateDepartment(id)`: verify `headUserId === null` and `User.countDocuments({ departmentId: id, isActive: true }) === 0`; throw `ACTIVE_DEPENDENCIES_EXIST` and abort otherwise.
+- [x] One integration test on the cascade transaction: successful cascade, and a forced failure that rolls back cleanly. (Not a load-test suite.)
+
+### 3.2 Controllers & Routes
+- [x] `userController.js`, `departmentController.js` wrapping the services above.
+- [x] `express-validator` schemas on all staff/department POST/PUT bodies.
+- [x] `routes/users.js`: `GET /staff?limit&skip`, `POST /staff`, `PUT /staff/:id`, `DELETE /staff/:id` (returns `200` + cancellation count). `authenticate` + `authorize(['admin'])` on all but `GET`.
+- [x] `routes/departments.js`: `GET /departments`, `POST /departments`, `PUT /departments/:id/reassign-head`. Same guards.
+- [x] Reassign-head rule: new `headUserId` must reference a currently `isActive` user.
+
+## Phase 4: Appointments
+- [x] `appointmentService.js`: create appointment (`doctorId`, `departmentId`, `dateTime`, `status` defaults to `scheduled`), update status.
+- [x] `routes/appointments.js`: `authenticate` on all; doctors scoped to their own `doctorId`, admins see all.
+- [x] No double-booking checks — out of scope.
+
+## Phase 5: Analytics (REST Polling, No Real-Time)
+- [x] `analyticsService.js` — aggregation pipeline over `Appointment`, grouped by status/department/doctor, filtered by date range.
+- [x] `GET /api/v1/analytics/weekly`, `authenticate` required.
+- [x] No sockets, no debouncer. The React dashboard polls this endpoint every ~10 seconds (or on a manual refresh button) — visually indistinguishable from "real-time" for a demo.
+
+## Phase 6: Admin Dashboard UI
+
+### 6.1 Frontend Architecture
+- [x] `client/vite.config.js` — API reverse proxy so cookies stay same-origin (`SameSite=Strict` requires this). **Do this before wiring any auth calls.**
+- [x] Install and configure `react-router-dom`: `/login` (existing `AuthPage`), protected `/dashboard/staff`, `/dashboard/departments`, `/dashboard/analytics`. Guard redirects unauthenticated users to `/login`.
+- [x] `client/src/context/AuthContext.jsx` — session state, login/logout helpers, calls `GET /auth/me` on load.
+- [x] Axios instance with `withCredentials: true`. No CSRF header wiring needed.
+- [x] Register `staff/`, `departments/`, `analytics/` as recognized domains in the existing `eslint-plugin-boundaries` config, following the pattern already set for `auth/`.
+
+### 6.2 Staff & Department Views
+- [x] Wire the existing `SignInForm.jsx` to `AuthContext`'s login call.
+- [x] **Decision needed on `RegisterForm.jsx`:** there's no public self-registration endpoint — staff are created by an admin via `POST /staff`. Default here: repurposed as admin-gated creation form under `features/staff/`.
+- [x] `features/staff/`: list, create/edit form, single role dropdown (`admin`/`doctor`/`receptionist`).
+- [x] `features/departments/`: list, head-reassignment dropdown (active users only).
+- [x] Blocking confirmation modal when a deactivation attempt returns `ACTIVE_DEPENDENCIES_EXIST`.
+
+### 6.3 Analytics View
+- [x] `features/analytics/`: fetch `/weekly` on mount, then poll every ~10s (with visibility-based pause for Atlas free-tier safety), display stats.
+- [x] Before picking a charting library, confirm it declares React 19 in its `peerDependencies` (Recharts 3.9.2 verified).
+
+## Phase 7: Polish
+- [x] Keep `helmet` on its defaults.
+- [x] Keep `express-rate-limit` (100 req/min general, 5 req/min on auth) — in-memory, no infra, one line.
+- [x] `console.log`/`console.error` for login/logout and errors; skip a structured logging library.
+- [x] Deploy to a free tier (Railway, Render) with MongoDB Atlas's free cluster — it's already a replica set by default, so transactions work with no extra config.
