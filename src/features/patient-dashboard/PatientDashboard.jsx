@@ -12,7 +12,7 @@ import DepartmentsView from "./views/DepartmentsView";
 import DoctorsView from "./views/DoctorsView";
 import BookAppointmentView from "./views/BookAppointmentView";
 import AppointmentsView from "./views/AppointmentsView";
-import ProfileView from "./views/ProfileView";
+
 
 export default function PatientDashboard({ patientId, patientName, onSignOut }) {
   const [activeView, setActiveView] = useState("dashboard");
@@ -118,7 +118,7 @@ export default function PatientDashboard({ patientId, patientName, onSignOut }) 
             />
           )}
 
-          {activeView === "profile" && <ProfileView />}
+
         </main>
       </div>
     </div>

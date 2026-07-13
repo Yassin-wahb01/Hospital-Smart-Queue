@@ -1,4 +1,4 @@
-import { Building2, Calendar, LayoutDashboard, LogOut, Search, UserCircle } from "lucide-react";
+import { Building2, Calendar, LayoutDashboard, LogOut, Search } from "lucide-react";
 import Logo from "../../../components/Logo";
 import { useAuth } from "../../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { id: "departments", label: "Departments", Icon: Building2 },
   { id: "doctors", label: "Find Doctors", Icon: Search },
   { id: "appointments", label: "My Appointments", Icon: Calendar },
-  { id: "profile", label: "Profile", Icon: UserCircle },
+
 ];
 
 export default function PatientSidebar({ activeView, onNavigate, isOpen, patientName, onSignOut }) {
