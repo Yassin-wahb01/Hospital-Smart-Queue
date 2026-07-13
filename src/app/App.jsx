@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
-import RolePlaceholder from '../components/RolePlaceholder';
+import ReceptionistDashboard from '../features/receptionist/ReceptionistDashboard';
 import AuthPage from '../features/auth/AuthPage';
 import DashboardLayout from '../features/dashboard/DashboardLayout';
 import DashboardHome from '../features/dashboard/DashboardHome';
@@ -94,9 +94,9 @@ function ReceptionistDashboardRoute() {
   }
 
   return (
-    <RolePlaceholder
-      role={user.role}
-      name={user.name}
+    <ReceptionistDashboard
+      receptionistId={user._id || user.userId}
+      receptionistName={user.name}
       onSignOut={handleSignOut}
     />
   );
