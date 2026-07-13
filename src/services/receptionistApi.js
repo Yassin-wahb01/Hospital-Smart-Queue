@@ -17,6 +17,10 @@ export const receptionistApi = {
     const res = await api.put(`/appointments/${id}`, { status: "cancelled" });
     return res.data;
   },
+  updateAppointmentStatus: async (id, status) => {
+    const res = await api.put(`/appointments/${id}`, { status });
+    return res.data;
+  },
   getDoctors: async () => {
     const res = await api.get("/staff?role=doctor&limit=200");
     return res.data.users;

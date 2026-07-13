@@ -11,7 +11,6 @@ import Logo from "../../../components/Logo";
 
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "patients", label: "Patients", icon: Users },
   { id: "appointments", label: "Appointments", icon: Calendar },
   { id: "queue", label: "Queue", icon: Clock },
 ];
