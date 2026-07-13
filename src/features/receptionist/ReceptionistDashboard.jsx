@@ -34,7 +34,7 @@ export default function ReceptionistDashboard({ receptionistId, receptionistName
       setAppointments(apptData);
       setDoctors(docData);
     } catch (err) {
-      showToast("Failed to load data", { variant: "error" });
+      showToast("Failed to load data", { title: "Error", variant: "error" });
     } finally {
       setLoading(false);
     }
@@ -48,27 +48,27 @@ export default function ReceptionistDashboard({ receptionistId, receptionistName
     try {
       if (editingAppointment) {
         await receptionistApi.updateAppointment(editingAppointment._id, formData);
-        showToast("Appointment updated", { variant: "success" });
+        showToast("Appointment updated", { title: "Success", variant: "success" });
       } else {
         await receptionistApi.createAppointment(formData);
-        showToast("Appointment created", { variant: "success" });
+        showToast("Appointment created", { title: "Success", variant: "success" });
       }
       setModalOpen(false);
       setEditingAppointment(null);
       fetchData();
     } catch (err) {
-      showToast("Operation failed", { variant: "error" });
+      showToast("Operation failed", { title: "Error", variant: "error" });
     }
   };
 
   const handleCancel = async () => {
     try {
       await receptionistApi.cancelAppointment(cancelTarget);
-      showToast("Appointment cancelled", { variant: "info" });
+      showToast("Appointment cancelled", { title: "Success", variant: "info" });
       setCancelTarget(null);
       fetchData();
     } catch (err) {
-      showToast("Cancel failed", { variant: "error" });
+      showToast("Cancel failed", { title: "Error", variant: "error" });
     }
   };
 
@@ -258,15 +258,16 @@ export default function ReceptionistDashboard({ receptionistId, receptionistName
         doctors={doctors}
       />
 
-      <ConfirmModal
-        open={!!cancelTarget}
-        title="Cancel Appointment?"
-        message="This will change the appointment status to cancelled."
-        confirmLabel="Cancel Appointment"
-        variant="danger"
-        onConfirm={handleCancel}
-        onCancel={() => setCancelTarget(null)}
-      />
+      {!!cancelTarget && (
+        <ConfirmModal
+          title="Cancel Appointment?"
+          message="This will change the appointment status to cancelled."
+          confirmLabel="Cancel Appointment"
+          danger={true}
+          onConfirm={handleCancel}
+          onClose={() => setCancelTarget(null)}
+        />
+      )}
     </div>
   );
 }
