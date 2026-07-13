@@ -79,6 +79,14 @@ async function updateStatus(req, res, next) {
       }
     }
 
+    // Doctors: may only update their own appointments
+    if (req.user.role === 'doctor') {
+      const appt = await Appointment.findById(req.params.id);
+      if (!appt || appt.doctorId?.toString() !== req.user.userId) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
+
     const appt = await apptService.updateStatus(req.params.id, req.body.status);
     res.json(appt);
   } catch (err) { next(err); }

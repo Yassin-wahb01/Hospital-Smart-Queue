@@ -11,7 +11,7 @@ const TYPE_ICON = {
 export default function AppointmentCard({ appointment, onComplete, onCancel }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const TypeIcon = TYPE_ICON[appointment.type] ?? User;
-  const isResolved = appointment.status === "completed" || appointment.status === "cancelled";
+  const isResolved = appointment.status === "attended" || appointment.status === "cancelled" || appointment.status === "no-show";
 
   return (
     <div className="rounded-2xl border border-border bg-card p-4 text-card-foreground transition-shadow duration-200 hover:shadow-md">

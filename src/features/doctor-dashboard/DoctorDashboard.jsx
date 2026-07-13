@@ -1,11 +1,10 @@
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 import Toast from "../../components/Toast";
 import useToast from "../../hooks/useToast";
 import useDarkMode from "../../hooks/useDarkMode";
-import useAppointments from "../../hooks/useAppointments";
+import useDoctorAppointments from "../../hooks/useDoctorAppointments";
 import useBlockTimes from "../../hooks/useBlockTimes";
-import { todayISODate } from "../../utils/storage";
-import { seedDemoScheduleIfEmpty } from "./seedDemoSchedule";
 import DashboardSidebar from "./components/DashboardSidebar";
 import DashboardHeader from "./components/DashboardHeader";
 import DashboardView from "./views/DashboardView";
@@ -14,32 +13,26 @@ import AppointmentsView from "./views/AppointmentsView";
 import BlockTimeView from "./views/BlockTimeView";
 
 export default function DoctorDashboard({ doctorId, doctorName, onSignOut }) {
-  console.log('[DoctorDashboard] rendered, props:', { doctorId, doctorName, onSignOut });
-  // Runs synchronously during render, before useAppointments/useBlockTimes
-  // read localStorage below — so their very first read already sees the
-  // seeded data. It's idempotent (see seedDemoSchedule.js), so re-renders
-  // are a cheap no-op once today's data exists.
-  seedDemoScheduleIfEmpty(doctorId, doctorName);
-
   const [activeView, setActiveView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { isDark, toggleDarkMode } = useDarkMode();
   const { message, title, variant, showToast, hideToast } = useToast();
-  const today = todayISODate();
 
-  const { appointments, updateStatus } = useAppointments(doctorId, today);
+  // Real backend — scoped to this doctor automatically by the API
+  const { appointments, todayAppointments, loading, updateStatus } = useDoctorAppointments();
+  // Block times have no backend yet — kept in localStorage
   const { blocks, addBlock, removeBlock } = useBlockTimes(doctorId);
 
-  const handleComplete = (id) => {
-    updateStatus(id, "completed");
+  const handleComplete = async (id) => {
+    await updateStatus(id, "attended");
     showToast("The queue counter has been updated.", {
-      title: "Consultation marked as completed",
+      title: "Consultation marked as attended",
       variant: "success",
     });
   };
 
-  const handleCancel = (id) => {
-    updateStatus(id, "cancelled");
+  const handleCancel = async (id) => {
+    await updateStatus(id, "cancelled");
     showToast("The patient's slot has been freed up.", {
       title: "Appointment cancelled",
       variant: "error",
@@ -76,25 +69,42 @@ export default function DoctorDashboard({ doctorId, doctorName, onSignOut }) {
         />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {activeView === "dashboard" && (
-            <DashboardView
-              appointments={appointments}
-              blocks={blocks}
-              onComplete={handleComplete}
-              onCancel={handleCancel}
-            />
-          )}
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              <RefreshCw className="mr-2 h-6 w-6 animate-spin" />
+              Loading appointments…
+            </div>
+          ) : (
+            <>
+              {activeView === "dashboard" && (
+                <DashboardView
+                  appointments={todayAppointments}
+                  blocks={blocks}
+                  onComplete={handleComplete}
+                  onCancel={handleCancel}
+                />
+              )}
 
-          {activeView === "schedule" && (
-            <DailyScheduleView appointments={appointments} onComplete={handleComplete} onCancel={handleCancel} />
-          )}
+              {activeView === "schedule" && (
+                <DailyScheduleView
+                  appointments={todayAppointments}
+                  onComplete={handleComplete}
+                  onCancel={handleCancel}
+                />
+              )}
 
-          {activeView === "appointments" && (
-            <AppointmentsView appointments={appointments} onComplete={handleComplete} onCancel={handleCancel} />
-          )}
+              {activeView === "appointments" && (
+                <AppointmentsView
+                  appointments={appointments}
+                  onComplete={handleComplete}
+                  onCancel={handleCancel}
+                />
+              )}
 
-          {activeView === "blocktime" && (
-            <BlockTimeView blocks={blocks} onAddBlock={handleAddBlock} onRemoveBlock={removeBlock} />
+              {activeView === "blocktime" && (
+                <BlockTimeView blocks={blocks} onAddBlock={handleAddBlock} onRemoveBlock={removeBlock} />
+              )}
+            </>
           )}
         </main>
       </div>
