@@ -39,7 +39,10 @@ app.use((req, _res, next) => {
 
 // ── Rate limiting ─────────────────────────────────────────────────
 const generalLimiter = rateLimit({ windowMs: 60_000, max: 100 });
-const authLimiter = rateLimit({ windowMs: 60_000, max: 5 });
+const authLimiter = rateLimit({
+  windowMs: 60_000,
+  max: process.env.NODE_ENV === 'development' ? 1000 : 5
+});
 
 app.use('/api/v1', generalLimiter);
 app.use('/api/v1/auth/login', authLimiter);
