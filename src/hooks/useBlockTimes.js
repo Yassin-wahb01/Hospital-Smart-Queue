@@ -1,47 +1,56 @@
-import { useCallback, useEffect, useState } from "react";
-import { LOCAL_UPDATE_EVENT, readCollection, STORAGE_KEYS, writeCollection } from "../utils/storage";
+import { useCallback, useEffect, useState } from 'react';
+import api from '../services/api';
 
+/**
+ * Hook to manage doctor block times from the real backend.
+ */
 export default function useBlockTimes(doctorId) {
-  const [all, setAll] = useState(() => readCollection(STORAGE_KEYS.blockTime));
+  const [blocks, setBlocks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const refresh = useCallback(() => {
-    setAll(readCollection(STORAGE_KEYS.blockTime));
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/block-times');
+      setBlocks(data ?? []);
+      setError(null);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    const onExternalChange = (e) => {
-      if (e.key === STORAGE_KEYS.blockTime) refresh();
-    };
-    const onLocalChange = (e) => {
-      if (e.detail?.key === STORAGE_KEYS.blockTime) refresh();
-    };
-
-    window.addEventListener("storage", onExternalChange);
-    window.addEventListener(LOCAL_UPDATE_EVENT, onLocalChange);
-    return () => {
-      window.removeEventListener("storage", onExternalChange);
-      window.removeEventListener(LOCAL_UPDATE_EVENT, onLocalChange);
-    };
+    refresh();
   }, [refresh]);
 
   const addBlock = useCallback(
-    (block) => {
-      const current = readCollection(STORAGE_KEYS.blockTime);
-      const next = [...current, { ...block, doctorId }];
-      writeCollection(STORAGE_KEYS.blockTime, next);
-      setAll(next);
+    async (block) => {
+      try {
+        await api.post('/block-times', block);
+        await refresh();
+      } catch (err) {
+        setError(err);
+        throw err;
+      }
     },
-    [doctorId]
+    [refresh]
   );
 
-  const removeBlock = useCallback((index) => {
-    const current = readCollection(STORAGE_KEYS.blockTime);
-    const next = current.filter((_, i) => i !== index);
-    writeCollection(STORAGE_KEYS.blockTime, next);
-    setAll(next);
-  }, []);
+  const removeBlock = useCallback(
+    async (id) => {
+      try {
+        await api.delete(`/block-times/${id}`);
+        await refresh();
+      } catch (err) {
+        setError(err);
+        throw err;
+      }
+    },
+    [refresh]
+  );
 
-  const blocks = all.filter((b) => b.doctorId === doctorId);
-
-  return { blocks, addBlock, removeBlock };
+  return { blocks, loading, error, refresh, addBlock, removeBlock };
 }

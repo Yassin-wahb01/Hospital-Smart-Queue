@@ -1,7 +1,9 @@
 const { body, param, query, validationResult } = require('express-validator');
 const Appointment = require('../models/Appointment');
 const User = require('../models/User');
+const BlockTime = require('../models/BlockTime');
 const apptService = require('../services/appointmentService');
+
 
 function validate(req, res, next) {
   const errors = validationResult(req);
@@ -117,15 +119,6 @@ async function getAvailability(req, res, next) {
     const nextDay = new Date(base);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    const allSlots = [];
-    for (let h = 9; h < 17; h++) {
-      for (let m = 0; m < 60; m += 30) {
-        const slot = new Date(base);
-        slot.setHours(h, m, 0, 0);
-        allSlots.push(slot.toISOString());
-      }
-    }
-
     const booked = await Appointment.find({
       doctorId,
       status: { $in: ['scheduled', 'attended'] },
@@ -133,8 +126,42 @@ async function getAvailability(req, res, next) {
     }).select('dateTime');
     const bookedSet = new Set(booked.map((b) => b.dateTime.toISOString()));
 
+    // Get active block times for this doctor on this specific date
+    const activeBlocks = await BlockTime.find({
+      doctorId,
+      date,
+      isActive: true,
+    });
+
+    const allSlots = [];
+    for (let h = 9; h < 17; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const slotMin = h * 60 + m;
+        let isBlocked = false;
+
+        for (const block of activeBlocks) {
+          const [startH, startM] = block.startTime.split(':').map(Number);
+          const [endH, endM] = block.endTime.split(':').map(Number);
+          const startMin = startH * 60 + startM;
+          const endMin = endH * 60 + endM;
+
+          if (slotMin >= startMin && slotMin < endMin) {
+            isBlocked = true;
+            break;
+          }
+        }
+
+        if (!isBlocked) {
+          const slot = new Date(base);
+          slot.setHours(h, m, 0, 0);
+          allSlots.push(slot.toISOString());
+        }
+      }
+    }
+
     res.json({ slots: allSlots.filter((s) => !bookedSet.has(s)) });
   } catch (err) { next(err); }
+
 }
 
 module.exports = { createRules, updateRules, listRules, availabilityRules, validate, list, create, updateStatus, getAvailability };

@@ -10,6 +10,8 @@ const userRoutes = require('./routes/users');
 const departmentRoutes = require('./routes/departments');
 const appointmentRoutes = require('./routes/appointments');
 const analyticsRoutes = require('./routes/analytics');
+const blockTimeRoutes = require('./routes/blockTimes');
+
 
 const app = express();
 
@@ -49,6 +51,8 @@ app.use('/api/v1/staff', userRoutes);
 app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/appointments', appointmentRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/block-times', blockTimeRoutes);
+
 
 // ── Global error handler ──────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
