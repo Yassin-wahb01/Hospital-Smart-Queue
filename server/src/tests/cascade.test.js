@@ -4,6 +4,7 @@
  * Requires a running MongoDB replica set (docker-compose up -d).
  * Run with:  node --test server/src/tests/cascade.test.js
  */
+process.env.TZ = 'Africa/Cairo';
 const assert = require('node:assert/strict');
 const { test, before, after } = require('node:test');
 const mongoose = require('mongoose');
@@ -13,6 +14,7 @@ const User = require('../models/User');
 const Department = require('../models/Department');
 const Appointment = require('../models/Appointment');
 const { deactivateUser } = require('../services/staffService');
+const { reassignHead } = require('../services/departmentService');
 
 before(async () => {
   await mongoose.connect(process.env.MONGODB_URI, { maxPoolSize: 2 });
@@ -38,12 +40,20 @@ test('successful cascade: deactivates doctor and cancels future appointments', a
   });
   await doctor.save();
 
+  const patient = new User({
+    email: 'cascade-test-patient@test.com',
+    passwordHash: 'ValidPass12!',
+    name: 'Test Patient',
+    role: 'patient',
+  });
+  await patient.save();
+
   const futureDate = new Date(Date.now() + 86_400_000); // tomorrow
   const pastDate = new Date(Date.now() - 86_400_000);   // yesterday
 
   const [futureAppt, pastAppt] = await Appointment.insertMany([
-    { doctorId: doctor._id, departmentId: dept._id, dateTime: futureDate, status: 'scheduled' },
-    { doctorId: doctor._id, departmentId: dept._id, dateTime: pastDate,  status: 'scheduled' },
+    { patientId: patient._id, doctorId: doctor._id, departmentId: dept._id, dateTime: futureDate, status: 'scheduled' },
+    { patientId: patient._id, doctorId: doctor._id, departmentId: dept._id, dateTime: pastDate,  status: 'scheduled' },
   ]);
 
   const result = await deactivateUser(doctor._id.toString());
@@ -75,4 +85,33 @@ test('deactivating a non-existent user throws 404', async () => {
       return true;
     }
   );
+});
+
+test('reassignHead fails when target user is not a doctor', async () => {
+  const dept = await Department.create({ name: 'cascade-test-dept-2' });
+
+  const patient = new User({
+    email: 'cascade-test-non-doctor@test.com',
+    passwordHash: 'ValidPass12!',
+    name: 'Test Patient',
+    role: 'patient',
+  });
+  await patient.save();
+
+  await assert.rejects(
+    () => reassignHead(dept._id.toString(), patient._id.toString()),
+    (err) => {
+      assert.equal(err.status, 400);
+      assert.match(err.message, /not an active doctor/i);
+      return true;
+    }
+  );
+
+  // Reassign to null/none should succeed
+  const updatedDept = await reassignHead(dept._id.toString(), null);
+  assert.equal(updatedDept.headUserId, null);
+
+  // Cleanup
+  await Department.deleteOne({ _id: dept._id });
+  await User.deleteOne({ _id: patient._id });
 });

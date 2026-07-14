@@ -5,7 +5,7 @@ import EmptyState from "../../../components/EmptyState";
 
 function RowActions({ appointment, onComplete, onCancel }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const isResolved = appointment.status === "completed" || appointment.status === "cancelled";
+  const isResolved = appointment.status === "attended" || appointment.status === "cancelled" || appointment.status === "no-show";
 
   if (isResolved) return null;
 

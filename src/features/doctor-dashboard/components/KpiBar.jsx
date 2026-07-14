@@ -2,11 +2,11 @@ import { Activity, Ban, CheckCircle2, Users } from "lucide-react";
 
 export default function KpiBar({ appointments, blocks }) {
   const total = appointments.length;
-  const completed = appointments.filter((a) => a.status === "completed").length;
+  const completed = appointments.filter((a) => a.status === "attended").length;
   const cancelled = appointments.filter((a) => a.status === "cancelled").length;
 
   const nextPatient = appointments
-    .filter((a) => a.status === "confirmed")
+    .filter((a) => a.status === "scheduled")
     .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot))[0];
 
   const resolved = completed + cancelled;

@@ -112,7 +112,7 @@ export default function BlockTimeForm({ blocks, onAddBlock, onRemoveBlock }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => onRemoveBlock(index)}
+                  onClick={() => onRemoveBlock(block._id)}
                   aria-label="Remove block"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
                 >

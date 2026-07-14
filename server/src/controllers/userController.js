@@ -23,7 +23,7 @@ const createRules = [
 const updateRules = [
   param('id').isMongoId(),
   body('name').optional().trim().notEmpty(),
-  body('role').optional().isIn(['admin', 'doctor', 'receptionist']),
+  body('role').optional().isIn(['admin', 'doctor', 'receptionist', 'patient']),
   body('departmentId').optional().isMongoId(),
   body('password')
     .optional()
@@ -35,7 +35,7 @@ const updateRules = [
 const listRules = [
   query('limit').optional().isInt({ min: 1, max: 1000 }).toInt(),
   query('skip').optional().isInt({ min: 0 }).toInt(),
-  query('role').optional().isIn(['admin', 'doctor', 'receptionist']),
+  query('role').optional().isIn(['admin', 'doctor', 'receptionist', 'patient']),
 ];
 
 // ── Handlers ──────────────────────────────────────────────────────
